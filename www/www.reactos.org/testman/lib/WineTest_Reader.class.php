@@ -182,4 +182,26 @@
 				"ORDER BY s.module, s.test"
 			);
 		}
+
+		public function getTestHistory($suite_id, $platform)
+		{
+			// Get information about this result.
+			$stmt = $this->_dbh->prepare(
+				"SELECT e.id, e.status, e.count, e.failures, e.skipped, e.todo, e.time, r.revision " .
+				"FROM winetest_results e " .
+				"JOIN winetest_runs r ON e.test_id = r.id " .
+				"WHERE e.suite_id = :suite_id AND r.platform = :platform " .
+				"ORDER BY e.id DESC"
+			);
+			$stmt->bindParam(":suite_id", $suite_id);
+			$stmt->bindParam(":platform", $platform);
+			$stmt->execute();
+			$array = array();
+			//return $stmt->fetch(PDO::FETCH_ASSOC);
+			while ($row = $stmt->fetch(PDO::FETCH_ASSOC))
+			{
+				$array[] = $row;
+			}
+			return $array;
+		}
 	}
