@@ -3,7 +3,7 @@
  * PROJECT:     ReactOS Testman
  * LICENSE:     GPL-2.0+ (https://spdx.org/licenses/GPL-2.0+)
  * PURPOSE:     Web Service for receiving test results from "rosautotest"
- * COPYRIGHT:   Copyright 2008-2017 Colin Finck (colin@reactos.org)
+ * COPYRIGHT:   Copyright 2008-2025 Colin Finck (colin@reactos.org)
  */
 
 	require_once("config.inc.php");
@@ -33,7 +33,7 @@
 				$revision = $_POST["revision"];
 				$platform = $_POST["platform"];
 				$comment = $_POST["comment"];
-				die($writer->getTestId($revision, $platform, $comment));
+				die((string)$writer->getTestId($revision, $platform, $comment));
 
 			case "getsuiteid":
 				if (!array_key_exists("module", $_POST) || !array_key_exists("test", $_POST))
@@ -41,7 +41,7 @@
 
 				$module = $_POST["module"];
 				$test = $_POST["test"];
-				die($writer->getSuiteId($module, $test));
+				die((string)$writer->getSuiteId($module, $test));
 
 			case "submit":
 				if (!array_key_exists("testid", $_POST) || !array_key_exists("suiteid", $_POST) || !array_key_exists("log", $_POST))
