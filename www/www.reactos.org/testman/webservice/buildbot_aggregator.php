@@ -62,9 +62,27 @@
 		if ($stmt->fetchColumn())
 			throw new ErrorMessageException("The script has already processed this build before!");
 
-		// Read the Buildslave test log.
+		// Download the log to a temp file
+		$tmpfile = tempnam(sys_get_temp_dir(), "ros");
+		if (!$tmpfile)
+			throw new RuntimeException("Could not create temp file");
+
 		$logurl = sprintf(BUILDER_URL, $builder, $build);
-		$fp = @fopen($logurl, "r");
+		$fp = fopen($tmpfile, "w");
+		$ch = curl_init($logurl);
+		curl_setopt($ch, CURLOPT_FILE, $fp);
+		curl_setopt($ch, CURLOPT_HEADER, 0);
+		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+		$result = curl_exec($ch);
+		curl_close($ch);
+		fclose($fp);
+
+		if (!$result)
+			throw new RuntimeException("Could not read the full log");
+
+		// Read the Buildslave test log.
+		$fp = @fopen($tmpfile, "r");
 		if (!$fp)
 			throw new RuntimeException("Could not open the test log!");
 
@@ -231,21 +249,9 @@
 
 		// The last thing to do is to get the total time the testing took.
 		// Unfortunately, this is only written to the HTML log...
-		$fp = tmpfile();
+		$fp = @fopen($tmpfile, "rb");
 		if (!$fp)
-			throw new RuntimeException("Could not create a temp file");
-
-		// Store the log in a temp file because HTTP streams are not seekable.
-		$ch = curl_init($logurl);
-		curl_setopt($ch, CURLOPT_FILE, $fp);
-		curl_setopt($ch, CURLOPT_HEADER, 0);
-		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-		$result = curl_exec($ch);
-		curl_close($ch);
-
-		if (!$result)
-			throw new RuntimeException("Could not read the full log");
+			throw new RuntimeException("Could not open the test log!");
 
 		// get the last kB of the log
 		if (fseek($fp, -1024, SEEK_END) != -1)
@@ -257,6 +263,7 @@
 		}
 
 		fclose($fp);
+		unlink($tmpfile);
 
 		// Finish this test run.
 		$writer->finish($test_id, $perf);
@@ -264,9 +271,13 @@
 	}
 	catch (ErrorMessageException $e)
 	{
+		if (isset($tmpfile) and $tmpfile)
+			unlink($tmpfile);
 		die($e->getMessage());
 	}
 	catch (Exception $e)
 	{
+		if (isset($tmpfile) and $tmpfile)
+			unlink($tmpfile);
 		die($e->getFile() . ":" . $e->getLine() . " - " . $e->getMessage());
 	}
