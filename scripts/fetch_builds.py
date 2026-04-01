@@ -19,6 +19,7 @@ import json
 import re
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
@@ -28,23 +29,35 @@ EXPORT_URL    = f"{BASE_URL}/testman/export.php"
 DETAIL_URL    = f"{BASE_URL}/testman/detail.php"
 
 
+def get(url, params, retries=5, backoff=5):
+    """GET with retry on timeout or connection error."""
+    for attempt in range(1, retries + 1):
+        try:
+            resp = requests.get(url, params=params, timeout=30)
+            resp.raise_for_status()
+            return resp
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            if attempt == retries:
+                raise
+            wait = backoff * attempt
+            print(f"    timeout/connection error ({exc}), retrying in {wait}s "
+                  f"(attempt {attempt}/{retries})")
+            time.sleep(wait)
+
+
 def search_runs(page, limit):
     params = {"page": page, "resultlist": "1", "desc": "1", "limit": limit}
-    resp = requests.get(SEARCH_URL, params=params, timeout=30)
-    resp.raise_for_status()
-    return ET.fromstring(resp.text)
+    return ET.fromstring(get(SEARCH_URL, params).text)
 
 
 def export_run(run_id):
-    resp = requests.get(EXPORT_URL, params={"f": "xml", "ids": str(run_id)}, timeout=30)
-    resp.raise_for_status()
+    resp = get(EXPORT_URL, {"f": "xml", "ids": str(run_id)})
     return ET.fromstring(resp.text)
 
 
 def fetch_log(result_id):
     """Fetch detail.php for a suite result and return the raw log text."""
-    resp = requests.get(DETAIL_URL, params={"id": str(result_id)}, timeout=30)
-    resp.raise_for_status()
+    resp = get(DETAIL_URL, {"id": str(result_id)})
 
     # The log sits in the sole <pre> element on the page.
     match = re.search(r"<pre>(.*?)</pre>", resp.text, re.DOTALL)
@@ -67,6 +80,8 @@ def main():
                         help="Output JSON file (default: builds_data.json)")
     parser.add_argument("--delay", type=float, default=0.2,
                         help="Delay between requests in seconds (default: 0.2)")
+    parser.add_argument("--workers", type=int, default=5,
+                        help="Parallel workers for fetching suite logs (default: 5)")
     args = parser.parse_args()
 
     runs = []
@@ -88,30 +103,43 @@ def main():
 
             try:
                 export_root = export_run(run_id)
-                time.sleep(args.delay)
-
                 run_el = export_root.find("run")
                 if run_el is None:
                     print(f"  [{run_id}] no <run> in export, skipping")
                     continue
 
-                suites = []
                 suite_elements = run_el.findall("test")
-                for i, test_el in enumerate(suite_elements):
-                    result_id = int(test_el.get("id"))
-                    log = fetch_log(result_id)
-                    time.sleep(args.delay)
+                total_suites = len(suite_elements)
 
-                    suites.append({
-                        "module":   test_el.get("module", ""),
-                        "test":     test_el.get("test", ""),
-                        "status":   test_el.get("status", "ok"),
-                        "log":      log,
-                    })
+                # Build a map of result_id → metadata so we can reassemble
+                # results in original order after parallel fetching.
+                suite_meta = {
+                    int(el.get("id")): {
+                        "module": el.get("module", ""),
+                        "test":   el.get("test", ""),
+                        "status": el.get("status", "ok"),
+                    }
+                    for el in suite_elements
+                }
+                result_ids = [int(el.get("id")) for el in suite_elements]
 
-                    print(f"  [{run_id}] suite {i + 1}/{len(suite_elements)}: "
-                          f"{test_el.get('module')}:{test_el.get('test')} "
-                          f"({len(log)} bytes)")
+                logs = {}
+                done = 0
+                with ThreadPoolExecutor(max_workers=args.workers) as pool:
+                    futures = {pool.submit(fetch_log, rid): rid for rid in result_ids}
+                    for future in as_completed(futures):
+                        rid = futures[future]
+                        logs[rid] = future.result()
+                        done += 1
+                        meta = suite_meta[rid]
+                        print(f"  [{run_id}] {done}/{total_suites} "
+                              f"{meta['module']}:{meta['test']} "
+                              f"({len(logs[rid])} bytes)")
+
+                suites = [
+                    {**suite_meta[rid], "log": logs[rid]}
+                    for rid in result_ids
+                ]
 
                 runs.append({
                     "id":       run_id,
