@@ -8,6 +8,7 @@ services:
       - ./docker/config/roslogin-connect.php:/var/www/html/www.reactos.org_config/roslogin-connect.php
       - ./docker/config/testman-connect.php:/var/www/html/www.reactos.org_config/testman-connect.php
       - ./docker/config/gitinfo-connect.php:/var/www/html/www.reactos.org_config/gitinfo-connect.php
+      - ./docker/parts:/srv/www/www.reactos.org_content/parts:ro
     depends_on:
       db:
         condition: service_healthy
