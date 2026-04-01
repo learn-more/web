@@ -17,8 +17,6 @@ import argparse
 import html
 import json
 import re
-import threading
-import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -30,33 +28,8 @@ EXPORT_URL    = f"{BASE_URL}/testman/export.php"
 DETAIL_URL    = f"{BASE_URL}/testman/detail.php"
 
 
-_request_count = 0
-_request_lock  = threading.Lock()
-_go            = threading.Event()
-_go.set()  # initially open
-_RATE_LIMIT_EVERY = 400   # pause after this many requests
-_RATE_LIMIT_WAIT  = 60    # seconds to wait
-
-
 def get(url, params, retries=5, backoff=5):
-    """GET with retry on timeout or connection error, and global rate limiting."""
-    global _request_count
-
-    # Block here if another thread triggered a pause.
-    _go.wait()
-
-    with _request_lock:
-        _request_count += 1
-        count = _request_count
-        trigger_pause = (count % _RATE_LIMIT_EVERY == 0)
-        if trigger_pause:
-            _go.clear()  # hold all other threads at _go.wait() above
-
-    if trigger_pause:
-        print(f"  [{count} requests made] pausing {_RATE_LIMIT_WAIT}s to avoid rate limiting...")
-        time.sleep(_RATE_LIMIT_WAIT)
-        _go.set()  # release all waiting threads
-
+    """GET with retry on timeout or connection error."""
     for attempt in range(1, retries + 1):
         try:
             resp = requests.get(url, params=params, timeout=30)
@@ -108,6 +81,8 @@ def main():
                         help="Delay between requests in seconds (default: 0.2)")
     parser.add_argument("--workers", type=int, default=5,
                         help="Parallel workers for fetching suite logs (default: 5)")
+    parser.add_argument("--suites", type=int, default=10,
+                        help="Max suite logs to fetch per run (default: 10)")
     args = parser.parse_args()
 
     runs = []
@@ -134,7 +109,7 @@ def main():
                     print(f"  [{run_id}] no <run> in export, skipping")
                     continue
 
-                suite_elements = run_el.findall("test")
+                suite_elements = run_el.findall("test")[:args.suites]
                 total_suites = len(suite_elements)
 
                 # Build a map of result_id → metadata so we can reassemble
