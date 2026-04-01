@@ -56,6 +56,9 @@ CREATE TABLE `sessions` (
 -- -------------------------------------------------------
 USE `testman`;
 
+-- Default source for the submit script (sourceid=1, password="testpassword")
+INSERT INTO `sources` (name, password) VALUES ('Test Build GCCLin_x86 on Test KVM', MD5('testpassword'));
+
 CREATE TABLE `sources` (
   `id` int(10) unsigned NOT NULL auto_increment,
   `name` varchar(100) collate latin1_general_ci NOT NULL,
