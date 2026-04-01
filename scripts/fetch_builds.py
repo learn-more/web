@@ -17,6 +17,7 @@ import argparse
 import html
 import json
 import re
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
