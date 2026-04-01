@@ -29,10 +29,8 @@ services:
 
   ldap:
     build:
-      context: docker/ldap
-      dockerfile: Dockerfile
-    volumes:
-      - ./resources/ldaptest/testserver.py:/app/testserver.py
+      context: .
+      dockerfile: docker/ldap/Dockerfile
     ports:
       - "389:389"
 
