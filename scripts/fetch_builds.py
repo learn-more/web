@@ -32,6 +32,8 @@ DETAIL_URL    = f"{BASE_URL}/testman/detail.php"
 
 _request_count = 0
 _request_lock  = threading.Lock()
+_go            = threading.Event()
+_go.set()  # initially open
 _RATE_LIMIT_EVERY = 400   # pause after this many requests
 _RATE_LIMIT_WAIT  = 60    # seconds to wait
 
@@ -39,13 +41,21 @@ _RATE_LIMIT_WAIT  = 60    # seconds to wait
 def get(url, params, retries=5, backoff=5):
     """GET with retry on timeout or connection error, and global rate limiting."""
     global _request_count
+
+    # Block here if another thread triggered a pause.
+    _go.wait()
+
     with _request_lock:
         _request_count += 1
         count = _request_count
+        trigger_pause = (count % _RATE_LIMIT_EVERY == 0)
+        if trigger_pause:
+            _go.clear()  # hold all other threads at _go.wait() above
 
-    if count % _RATE_LIMIT_EVERY == 0:
+    if trigger_pause:
         print(f"  [{count} requests made] pausing {_RATE_LIMIT_WAIT}s to avoid rate limiting...")
         time.sleep(_RATE_LIMIT_WAIT)
+        _go.set()  # release all waiting threads
 
     for attempt in range(1, retries + 1):
         try:
