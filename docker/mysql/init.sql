@@ -56,15 +56,15 @@ CREATE TABLE `sessions` (
 -- -------------------------------------------------------
 USE `testman`;
 
--- Default source for the submit script (sourceid=1, password="testpassword")
-INSERT INTO `sources` (name, password) VALUES ('Test Build GCCLin_x86 on Test KVM', MD5('testpassword'));
-
 CREATE TABLE `sources` (
   `id` int(10) unsigned NOT NULL auto_increment,
   `name` varchar(100) collate latin1_general_ci NOT NULL,
   `password` char(32) collate latin1_general_ci NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+
+-- Default source for the submit script (sourceid=1, password="testpassword")
+INSERT INTO `sources` (name, password) VALUES ('Test Build GCCLin_x86 on Test KVM', MD5('testpassword'));
 
 CREATE TABLE `winetest_logs` (
   `id` int(10) unsigned NOT NULL auto_increment,
