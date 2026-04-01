@@ -17,6 +17,7 @@ import argparse
 import html
 import json
 import re
+import threading
 import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -29,8 +30,23 @@ EXPORT_URL    = f"{BASE_URL}/testman/export.php"
 DETAIL_URL    = f"{BASE_URL}/testman/detail.php"
 
 
+_request_count = 0
+_request_lock  = threading.Lock()
+_RATE_LIMIT_EVERY = 400   # pause after this many requests
+_RATE_LIMIT_WAIT  = 60    # seconds to wait
+
+
 def get(url, params, retries=5, backoff=5):
-    """GET with retry on timeout or connection error."""
+    """GET with retry on timeout or connection error, and global rate limiting."""
+    global _request_count
+    with _request_lock:
+        _request_count += 1
+        count = _request_count
+
+    if count % _RATE_LIMIT_EVERY == 0:
+        print(f"  [{count} requests made] pausing {_RATE_LIMIT_WAIT}s to avoid rate limiting...")
+        time.sleep(_RATE_LIMIT_WAIT)
+
     for attempt in range(1, retries + 1):
         try:
             resp = requests.get(url, params=params, timeout=30)
