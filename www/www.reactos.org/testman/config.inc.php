@@ -7,14 +7,17 @@
  */
 
 	define("ROOT_PATH", "../");
-	define("INDICATORS_PATH", "indicators/");
 
-	define("DEFAULT_SEARCH_LIMIT", 10);
-	define("DEFAULT_SEARCH_SOURCE", "Build GCCLin_x86 on Test KVM");
-	define("MAX_COMPARE_RESULTS", 8);
+	define("MAX_COMPARE_RESULTS", 16);
 	define("RESULTS_PER_PAGE", 10);
 	define("MACHINE_REBOOTS_THRESHOLD", 2);
 	define("REV_RANGE_LIMIT", 3000);
+
+	// A source is listed on the front page if it submitted a result within this many days.
+	define("LANDING_ACTIVE_DAYS", 30);
+
+	// Runs per page of the test suite history.
+	define("SUITE_HISTORY_PAGE_SIZE", 50);
 
 	define("VIEWVC", "https://git.reactos.org/?p=reactos.git");
 	define("VIEWVC_TRUNK", VIEWVC . ";a=blob");

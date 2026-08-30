@@ -40,3 +40,31 @@
 .comboedit div input {
 	border-right: 0;
 }
+
+.testman-filters label {
+	margin-bottom: 2px;
+}
+
+.testman-filters .date-range {
+	display: flex;
+	align-items: center;
+}
+
+.testman-filters .date-range input {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.testman-filters .date-range span {
+	padding: 0 6px;
+}
+
+/* Lines the buttons up with the inputs beside them, which each sit under a label. */
+.filter-actions {
+	margin-top: 24px;
+}
+
+.filter-actions .opennewwindow {
+	font-weight: normal;
+	margin-left: 8px;
+}

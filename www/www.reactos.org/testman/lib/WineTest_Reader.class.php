@@ -62,7 +62,7 @@
 
 			// Get all Suite IDs linked to our Test IDs
 			$stmt = $this->_dbh->query(
-				"SELECT s.id " .
+				"SELECT DISTINCT s.id " .
 				"FROM winetest_suites s " .
 				"JOIN winetest_results e ON e.suite_id = s.id " .
 				"WHERE e.test_id IN (" . $this->_test_id_list . ")"

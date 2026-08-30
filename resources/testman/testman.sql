@@ -26,7 +26,7 @@ CREATE TABLE `winetest_results` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `test_and_suite` (`test_id`,`suite_id`),
   KEY `suite_id` (`suite_id`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
 
 CREATE TABLE `winetest_runs` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
@@ -46,8 +46,10 @@ CREATE TABLE `winetest_runs` (
   `time` float unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   KEY `revision` (`revision`),
-  KEY `platform` (`platform`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+  KEY `platform` (`platform`),
+  KEY `ix_runs_ts` (`finished`,`timestamp`,`id`),
+  KEY `ix_runs_src_plat` (`source_id`,`platform`,`timestamp`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
 
 CREATE TABLE `winetest_suites` (
   `id` int(10) unsigned NOT NULL auto_increment,

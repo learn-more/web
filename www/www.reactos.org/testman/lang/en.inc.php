@@ -12,7 +12,6 @@
 	$testman_langres = array(
 		// Index page
 		"index_title" => "ReactOS Testman",
-		"index_intro" => "This interface enables you to find, view and compare Results of automatically performed Regression Tests.",
 
 		"date" => "Date",
 		"source" => "Source",
@@ -24,6 +23,26 @@
 		"comparefirsttwo_button" => "Compare first two Results",
 		"compareselected_button" => "Compare selected Results",
 		"opennewwindow_checkbox" => "Open in new Window",
+
+		"datefrom" => "From",
+		"dateto" => "To",
+		"minfailures" => "Min. Failures",
+		"revisionhint" => "Start of the commit hash, e.g. %s",
+		"allsources" => "All Sources",
+		"allplatforms" => "All Platforms",
+		"reset_button" => "Reset",
+		"overview_title" => "Latest Result per Source",
+		"showhistory" => "History",
+		"noresults" => "No Results!",
+
+		// Suite History page
+		"suite_title" => "Test Suite History",
+		"teststatus" => "Status",
+		"notrun" => "not run",
+		"newer" => "Newer",
+		"older" => "Older",
+		"showdiff" => "Diff",
+		"suitehistory" => "History of this Test Suite",
 
 		// Compare page
 		"compare_title" => "Comparing Results",
