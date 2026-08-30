@@ -46,6 +46,9 @@
 		$stmt->execute();
 		$row = $stmt->fetch(PDO::FETCH_ASSOC);
 
+		if (!$row)
+			throw new ErrorMessageException("No result with this ID");
+
 		// Post-process the log for convenience.
 		$module_urls = array();
 		$search_urls = array("modules/rostests/winetests", "modules/rostests/apitests");

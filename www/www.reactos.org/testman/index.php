@@ -23,8 +23,8 @@
 	{
 		$gi = new GitInfo();
 		$revisions = $gi->getLatestRevisions(2);
-		$rev = $gi->getShortHash($revisions[0]);
-		$rev_before = $gi->getShortHash($revisions[1]);
+		$rev = isset($revisions[0]) ? $gi->getShortHash($revisions[0]) : "";
+		$rev_before = isset($revisions[1]) ? $gi->getShortHash($revisions[1]) : "";
 
 		// Connect to the database.
 		$dbh = new PDO("mysql:host=" . TESTMAN_DB_HOST . ";dbname=" . TESTMAN_DB_NAME, TESTMAN_DB_USER, TESTMAN_DB_PASS);
