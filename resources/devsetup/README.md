@@ -12,6 +12,9 @@ so that Testman and GetBuilds show something useful without a production dump.
    mysql gitinfo < ../gitinfo/gitinfo.sql
    ```
 
+   `testman.sql` already includes every migration in `../testman/`, so a fresh database
+   needs none of them. An existing one does; see the README there.
+
 2. Point `www/www.reactos.org_config/testman-connect.php` and `gitinfo-connect.php` at them.
 
 3. Enable the GD extension in `php.ini` (`extension=gd`) and restart the web server.
@@ -39,6 +42,20 @@ Git commits they refer to. Both parts are safe to re-run.
 
 Roughly 1400 results and 200 KB of XML per run, and about 30 runs per day, so keep `days`
 small unless you want to wait.
+
+## Anchoring the imported runs
+
+`import-live.php` writes runs straight into the database rather than through the web
+service, so they arrive without their `base_order`, `ref` and `pr_number`. Roughly a third
+of recent runs are pull request builds, and until they are anchored they are missing from
+revision ranges and indistinguishable from master runs. Fix that afterwards with:
+
+```
+php ../testman/backfill-run-anchors.php
+```
+
+The first run sweeps the BuildBot's build index, which takes a few minutes and is then
+cached. See `../testman/README.md`.
 
 ### What is not imported
 

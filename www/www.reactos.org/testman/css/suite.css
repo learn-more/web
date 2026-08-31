@@ -32,3 +32,27 @@
 #suitetable td:last-child {
 	white-space: nowrap;
 }
+
+/* Pull request builds are not part of master's series, so they never look like it. */
+#suitetable tr.prrun > td {
+	background-color: #fbf6e6;
+}
+
+#suitetable .anchor {
+	color: #777;
+	font-family: monospace;
+	font-size: 90%;
+}
+
+#suitetable .approx {
+	color: #8a6d3b;
+	border: 1px solid #d8c9a3;
+	border-radius: 3px;
+	padding: 0 4px;
+	cursor: help;
+}
+
+.pagesbox .includepr {
+	font-weight: normal;
+	margin-right: 12px;
+}

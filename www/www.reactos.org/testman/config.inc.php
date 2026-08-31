@@ -11,7 +11,6 @@
 	define("MAX_COMPARE_RESULTS", 16);
 	define("RESULTS_PER_PAGE", 10);
 	define("MACHINE_REBOOTS_THRESHOLD", 2);
-	define("REV_RANGE_LIMIT", 3000);
 
 	// A source is listed on the front page if it submitted a result within this many days.
 	define("LANDING_ACTIVE_DAYS", 30);
@@ -22,6 +21,4 @@
 	define("VIEWVC", "https://git.reactos.org/?p=reactos.git");
 	define("VIEWVC_TRUNK", VIEWVC . ";a=blob");
 	define("BLACKLIST_URL", "blacklist.txt");
-
-	// We never had builds < r10000 and never reached > r99999...
-	$SVN_PATTERN = "#^[0-9]{5}$#";
+	define("GITHUB_PR_URL", "https://github.com/reactos/reactos/pull/%u");

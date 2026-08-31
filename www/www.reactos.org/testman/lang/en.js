@@ -26,3 +26,11 @@ testman_langres["noresults"] = "No Search Results!";
 testman_langres["noselection"] = "You did not select any results!";
 testman_langres["selectatleast"] = "You must select at least {1} results for comparison!";
 testman_langres["maxselection"] = "You may only select up to {1} results for comparison!";
+
+testman_langres["revision"] = "Revision";
+testman_langres["anchor"] = "Based on";
+testman_langres["pullrequest"] = "PR {1}";
+testman_langres["approximate"] = "approx.";
+testman_langres["approximatehint"] = "Position estimated from the run time, not from the commit it was built on";
+testman_langres["unanchored"] = "not on the timeline";
+testman_langres["allrunsforpr"] = "Every run for this pull request, across all builders";

@@ -28,7 +28,9 @@
 	{
 		global $suite_id, $source_id, $platform;
 
-		$query = array_merge(array("suite" => $suite_id, "source" => $source_id, "platform" => $platform), $overrides);
+		global $show_pr;
+
+		$query = array_merge(array("suite" => $suite_id, "source" => $source_id, "platform" => $platform, "pr" => $show_pr ? 1 : null), $overrides);
 
 		return "suite.php?" . http_build_query(array_filter($query, function($value) { return $value !== null && $value !== ""; }));
 	}
@@ -48,6 +50,10 @@
 		$platform = $_GET["platform"];
 		$cursor = array_key_exists("cursor", $_GET) ? (int)$_GET["cursor"] : 0;
 		$newer = (array_key_exists("dir", $_GET) && $_GET["dir"] === "newer");
+
+		// Pull request builds are off by default. A PR that breaks a test would otherwise
+		// draw a spike in this history that reads as a master regression and is not one.
+		$show_pr = (array_key_exists("pr", $_GET) && $_GET["pr"] === "1");
 
 		if ($suite_id <= 0 || $source_id <= 0 || !preg_match("#^[A-Za-z0-9._-]{1,24}$#", $platform))
 			throw new ErrorMessageException("Invalid input");
@@ -83,9 +89,12 @@
 		// stops being cheap.
 		$page_size = SUITE_HISTORY_PAGE_SIZE;
 
-		$driver = "SELECT r.id, r.timestamp, r.revision, r.comment " .
+		$driver = "SELECT r.id, r.timestamp, r.revision, r.base_revision, r.base_exact, r.pr_number, r.comment " .
 		          "FROM winetest_runs r " .
 		          "WHERE r.finished = 1 AND r.source_id = :source_id AND r.platform = :platform ";
+
+		if (!$show_pr)
+			$driver .= "AND r.pr_number IS NULL ";
 
 		$params = array(":source_id" => $source_id, ":platform" => $platform, ":suite_id" => $suite_id);
 
@@ -98,7 +107,7 @@
 		$driver .= "ORDER BY r.id " . ($newer ? "ASC" : "DESC") . " LIMIT " . ($page_size + 1);
 
 		$stmt = $dbh->prepare(
-			"SELECT d.id AS run_id, UNIX_TIMESTAMP(d.timestamp) AS timestamp, d.revision, d.comment, " .
+			"SELECT d.id AS run_id, UNIX_TIMESTAMP(d.timestamp) AS timestamp, d.revision, d.base_revision, d.base_exact, d.pr_number, d.comment, " .
 			"e.id AS result_id, e.status, e.count, e.failures, e.skipped, e.todo, e.time " .
 			"FROM ($driver) d " .
 			"LEFT JOIN winetest_results e ON e.test_id = d.id AND e.suite_id = :suite_id " .
@@ -130,7 +139,8 @@
 				"SELECT e.id AS result_id, e.status, e.failures " .
 				"FROM winetest_runs r " .
 				"LEFT JOIN winetest_results e ON e.test_id = r.id AND e.suite_id = :suite_id " .
-				"WHERE r.finished = 1 AND r.source_id = :source_id AND r.platform = :platform AND r.id < :run_id " .
+				"WHERE r.finished = 1 AND r.source_id = :source_id AND r.platform = :platform " .
+				"AND r.pr_number IS NULL AND r.id < :run_id " .
 				"ORDER BY r.id DESC LIMIT 1"
 			);
 			$stmt->execute(array(
@@ -147,13 +157,26 @@
 
 		// Mark every row that differs from the run before it. Those are the rows worth
 		// looking at; everything else is the same result repeated.
-		for ($i = 0; $i < count($rows); $i++)
+		//
+		// Only master runs form that series. A PR build is compared against the newest
+		// master run below it - "did I break this, or was it already broken" - and never
+		// marks a change of its own, because a failure it introduces belongs to the pull
+		// request and not to master's history.
+		//
+		// Walking oldest to newest keeps that baseline to hand in one pass.
+		$older_master = $tail;
+
+		for ($i = count($rows) - 1; $i >= 0; $i--)
 		{
-			$prev = ($i + 1 < count($rows)) ? $rows[$i + 1] : $tail;
+			$prev = $older_master;
+			$is_pr = ($rows[$i]["pr_number"] !== null);
 
 			$rows[$i]["prev_result_id"] = ($prev && array_key_exists("result_id", $prev)) ? $prev["result_id"] : null;
-			$rows[$i]["changed"] = ($prev !== null && ($rows[$i]["status"] !== $prev["status"] || $rows[$i]["failures"] !== $prev["failures"]));
+			$rows[$i]["changed"] = (!$is_pr && $prev !== null && ($rows[$i]["status"] !== $prev["status"] || $rows[$i]["failures"] !== $prev["failures"]));
 			$rows[$i]["prev"] = $prev;
+
+			if (!$is_pr)
+				$older_master = $rows[$i];
 		}
 	}
 	catch (ErrorMessageException $e)
@@ -199,6 +222,11 @@
 		</dl>
 
 		<div class="pagesbox">
+			<label class="includepr">
+				<input type="checkbox" onclick="location.href = this.checked ? <?php echo htmlspecialchars(json_encode(SuiteURL(array("pr" => 1))), ENT_QUOTES); ?> : <?php echo htmlspecialchars(json_encode(SuiteURL(array("pr" => null))), ENT_QUOTES); ?>;"<?php echo $show_pr ? " checked" : ""; ?>>
+				<?php echo $testman_langres["includepr"]; ?>
+			</label>
+
 			<?php if ($has_newer): ?>
 				<a class="btn btn-default" href="<?php echo htmlspecialchars(SuiteURL(array("cursor" => $rows[0]["run_id"], "dir" => "newer"))); ?>"><i class="fa fa-angle-left"></i> <?php echo $testman_langres["newer"]; ?></a>
 			<?php else: ?>
@@ -231,9 +259,20 @@
 				<?php if (!count($rows)): ?>
 					<tr><td colspan="10"><?php echo $testman_langres["noresults"]; ?></td></tr>
 				<?php else: foreach ($rows as $row): ?>
-					<tr class="<?php echo $row["changed"] ? "changed" : ""; ?>">
+					<tr class="<?php echo trim(($row["changed"] ? "changed " : "") . ($row["pr_number"] !== null ? "prrun" : "")); ?>">
 						<td><?php echo GetDateString($row["timestamp"]); ?></td>
-						<td><a href="compare.php?ids=<?php echo (int)$row["run_id"]; ?>"><?php echo $gi->getShortHash($row["revision"]); ?></a></td>
+						<td>
+							<a href="compare.php?ids=<?php echo (int)$row["run_id"]; ?>"><?php echo $gi->getShortHash($row["revision"]); ?></a>
+							<?php if ($row["pr_number"] !== null): ?>
+								<br /><a class="prlink" href="<?php echo htmlspecialchars(sprintf(GITHUB_PR_URL, (int)$row["pr_number"])); ?>" target="_blank" rel="noopener"><?php echo htmlspecialchars(sprintf($testman_langres["onepr"], (int)$row["pr_number"])); ?></a>
+								<?php if ($row["base_revision"] !== null): ?>
+									<span class="anchor"><?php echo htmlspecialchars(sprintf($testman_langres["basedon"], $gi->getShortHash($row["base_revision"]))); ?></span>
+								<?php endif; ?>
+								<?php if (!$row["base_exact"]): ?>
+									<span class="approx" title="<?php echo htmlspecialchars($testman_langres["approximate"]); ?>">?</span>
+								<?php endif; ?>
+							<?php endif; ?>
+						</td>
 						<?php if ($row["result_id"] === null): ?>
 							<td colspan="6" class="notrun"><?php echo $testman_langres["notrun"]; ?></td>
 						<?php else: ?>

@@ -23,7 +23,7 @@
 
 	// The filters the page understands. They are the parameters of api/runs.php, so a
 	// search is fully described by the query string and can be bookmarked and shared.
-	$FILTER_KEYS = array("from", "to", "rev", "source", "platform", "min_failures", "cursor", "dir");
+	$FILTER_KEYS = array("from", "to", "rev", "rev_from", "rev_to", "pr", "source", "platform", "min_failures", "cursor", "dir");
 
 	try
 	{
@@ -96,6 +96,7 @@
 	<link rel="stylesheet" type="text/css" href="<?php echo AssetURL("css/index.css"); ?>">
 	<script type="text/javascript">
 		var MAX_COMPARE_RESULTS = <?php echo MAX_COMPARE_RESULTS; ?>;
+		var GITHUB_PR_URL = <?php echo json_encode(str_replace("%u", "", GITHUB_PR_URL)); ?>;
 	</script>
 	<script type="text/javascript" src="<?php echo AssetURL("/rosweb/lang/$lang.js", ROOT_PATH . "rosweb/lang/$lang.js"); ?>"></script>
 	<script type="text/javascript" src="<?php echo AssetURL("lang/$lang.js"); ?>"></script>
@@ -154,12 +155,31 @@
 			</div>
 
 			<div class="row">
-				<div class="col-md-4 form-group">
+				<div class="col-md-3 form-group">
 					<label for="search_revision"><?php echo $shared_langres["revision"]; ?></label>
 					<input class="form-control" type="text" id="search_revision" value="" placeholder="<?php echo htmlspecialchars($rev); ?>" title="<?php echo htmlspecialchars(sprintf($testman_langres["revisionhint"], $rev)); ?>">
 				</div>
 
-				<div class="col-md-8 filter-actions">
+				<div class="col-md-4 form-group">
+					<label for="search_rev_from"><?php echo $shared_langres["revision"]; ?> <?php echo $testman_langres["datefrom"]; ?>&ndash;<?php echo $testman_langres["dateto"]; ?></label>
+					<div class="date-range" title="<?php echo htmlspecialchars($testman_langres["revisionrangehint"]); ?>">
+						<input class="form-control" type="text" id="search_rev_from" title="<?php echo htmlspecialchars($testman_langres["revisionfrom"]); ?>">
+						<span>&ndash;</span>
+						<input class="form-control" type="text" id="search_rev_to" title="<?php echo htmlspecialchars($testman_langres["revisionto"]); ?>">
+					</div>
+				</div>
+
+				<div class="col-md-3 form-group">
+					<label for="search_pr"><?php echo $testman_langres["prbuilds"]; ?></label>
+					<select class="form-control" id="search_pr" size="1">
+						<option value="master"><?php echo $testman_langres["masteronly"]; ?></option>
+						<option value="all"><?php echo $testman_langres["allbuilds"]; ?></option>
+					</select>
+				</div>
+			</div>
+
+			<div class="row">
+				<div class="col-md-12 filter-actions">
 					<button class="btn btn-primary" onclick="SearchButton_OnClick()"><i class="fa fa-search"></i> <?php echo $shared_langres["search_button"]; ?></button>
 					<button class="btn btn-default" onclick="ResetButton_OnClick()"><?php echo $testman_langres["reset_button"]; ?></button>
 					<button class="btn btn-default" onclick="CompareFirstTwoButton_OnClick()"><?php echo $testman_langres["comparefirsttwo_button"]; ?></button>

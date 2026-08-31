@@ -13,9 +13,19 @@ var FILTER_FIELDS = {
 	from: "search_from",
 	to: "search_to",
 	rev: "search_revision",
+	rev_from: "search_rev_from",
+	rev_to: "search_rev_to",
+	pr: "search_pr",
 	source: "search_source",
 	platform: "search_platform",
 	min_failures: "search_min_failures"
+};
+
+// What a field shows when the query string does not mention it. The form starts on
+// master-only, but a URL that leaves "pr" out really does mean every build, so the
+// dropdown has to say so rather than silently disagreeing with the results below it.
+var FILTER_DEFAULTS = {
+	pr: "all"
 };
 
 // The response of the page that is currently shown, for the Newer/Older buttons.
@@ -108,8 +118,33 @@ function ReadFilters()
 
 function WriteFilters(query)
 {
+	// "pr" can also be a single pull request number, which is not one of the two options
+	// the dropdown ships with. Give it one, or pressing Search would quietly widen the
+	// view back to every build.
+	var select = document.getElementById(FILTER_FIELDS["pr"]);
+	var pr = query["pr"];
+
+	for (var i = select.options.length - 1; i >= 0; i--)
+	{
+		if (select.options[i].dataset.onepr)
+			select.remove(i);
+	}
+
+	if (pr && /^[0-9]+$/.test(pr))
+	{
+		var option = document.createElement("option");
+
+		option.value = pr;
+		option.text = testman_langres["pullrequest"].replace(/\{1\}/, pr);
+		option.dataset.onepr = "1";
+		select.add(option);
+	}
+
 	for (var name in FILTER_FIELDS)
-		document.getElementById(FILTER_FIELDS[name]).value = (name in query) ? query[name] : "";
+	{
+		var fallback = (name in FILTER_DEFAULTS) ? FILTER_DEFAULTS[name] : "";
+		document.getElementById(FILTER_FIELDS[name]).value = (name in query) ? query[name] : fallback;
+	}
 }
 
 function BuildQueryString(query)
@@ -188,6 +223,34 @@ function Search(query, push)
 		});
 }
 
+/**
+ * What the run was built on top of, which for a pull request build is not the commit it
+ * built. A master run is its own base, so saying so again in its own column would be
+ * noise; it gets an empty cell.
+ */
+function RenderAnchor(run)
+{
+	var html = "";
+
+	if (run.pr_number !== null)
+	{
+		html += '<a href="' + GITHUB_PR_URL + run.pr_number + '" target="_blank" rel="noopener">';
+		html += Escape(testman_langres["pullrequest"].replace(/\{1\}/, run.pr_number)) + '<\/a>';
+		html += ' <a href="?pr=' + run.pr_number + '" title="' + Escape(testman_langres["allrunsforpr"]) + '">&#9776;<\/a>';
+	}
+
+	if (run.base_revision !== null && run.base_revision !== run.revision)
+		html += ' <span class="anchor">' + Escape(run.base_revision_short) + '<\/span>';
+
+	if (!run.base_exact && run.base_order !== null)
+		html += ' <span class="approx" title="' + Escape(testman_langres["approximatehint"]) + '">' + Escape(testman_langres["approximate"]) + '<\/span>';
+
+	if (run.base_order === null && run.pr_number !== null)
+		html += ' <span class="approx">' + Escape(testman_langres["unanchored"]) + '<\/span>';
+
+	return html;
+}
+
 function RenderResults(data)
 {
 	// has_more only speaks about the direction that was asked for. In the other one we
@@ -219,6 +282,7 @@ function RenderResults(data)
 	html += '<thead><tr class="head">';
 	html += '<th class="TestCheckbox"><\/th>';
 	html += '<th>' + shared_langres["revision"] + '<\/th>';
+	html += '<th>' + testman_langres["anchor"] + '<\/th>';
 	html += '<th>' + shared_langres["date"] + '<\/th>';
 	html += '<th>' + testman_langres["totaltests"] + '<\/th>';
 	html += '<th>' + testman_langres["failedtests"] + '<\/th>';
@@ -230,7 +294,7 @@ function RenderResults(data)
 
 	if (!data.runs.length)
 	{
-		html += '<tr><td colspan="8">' + testman_langres["noresults"] + '<\/td><\/tr>';
+		html += '<tr><td colspan="9">' + testman_langres["noresults"] + '<\/td><\/tr>';
 	}
 	else
 	{
@@ -238,9 +302,10 @@ function RenderResults(data)
 		{
 			var run = data.runs[i];
 
-			html += '<tr>';
+			html += '<tr' + (run.pr_number !== null ? ' class="prrun"' : '') + '>';
 			html += '<td><input onclick="ResultCheckbox_OnClick(this)" type="checkbox" id="test_' + run.id + '" \/><\/td>';
 			html += '<td onclick="ResultCell_OnClick(this)">' + Escape(run.revision_short) + '<\/td>';
+			html += '<td>' + RenderAnchor(run) + '<\/td>';
 			html += '<td onclick="ResultCell_OnClick(this)">' + Escape(run.date) + '<\/td>';
 			html += '<td onclick="ResultCell_OnClick(this)">' + run.count + '<\/td>';
 			html += '<td onclick="ResultCell_OnClick(this)">' + run.failures + '<\/td>';

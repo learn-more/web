@@ -9,6 +9,7 @@
 	require_once("config.inc.php");
 	require_once(ROOT_PATH . "../www.reactos.org_config/testman-connect.php");
 	require_once("../utils.inc.php");
+	require_once(ROOT_PATH . "rosweb/gitinfo.php");
 
 	/**
 	 * Reads a GET parameter and checks it against $pattern.
@@ -68,6 +69,33 @@
 		return $date->format("Y-m-d H:i:s");
 	}
 
+	/**
+	 * Turns a commit hash, or a prefix of one, into its position on master's timeline.
+	 *
+	 * @return
+	 * The ordinal from gitinfo. Throws if the hash is not a master commit, which is the
+	 * honest answer for a PR merge commit: it has no position of its own, only a base.
+	 * Search for such a run with "rev" instead, or bound the range by the master commits
+	 * around it.
+	 */
+	function get_revision_order_param($name)
+	{
+		static $gi = NULL;
+
+		$value = get_param($name, "#^[0-9a-fA-F]{4,40}$#");
+		if ($value === NULL)
+			return NULL;
+
+		if ($gi === NULL)
+			$gi = new GitInfo();
+
+		$hash = $gi->getLongHash(strtolower($value));
+		if ($hash === FALSE)
+			throw new InvalidArgumentException("'$name' is not a known master commit");
+
+		return $gi->getRevisionOrder($hash);
+	}
+
 	header("Content-Type: application/json; charset=utf-8");
 
 	try
@@ -91,14 +119,62 @@
 			$params[":to"] = $to;
 		}
 
-		// A prefix of the commit hash. KEY (revision) serves this at the full 40 chars,
-		// and unlike the revision range of ajax-search.php it does not consult gitinfo,
-		// so it also finds runs whose commit gitinfo never saw.
+		// A prefix of the commit hash, matched against what the run built and against what
+		// it was built on top of. A master run has the same value in both, so the second
+		// half of this only ever adds pull request builds based on the commit - which is
+		// the other thing someone typing a hash wants to know about it.
+		//
+		// Unlike the revision range of ajax-search.php this never consults gitinfo, so it
+		// also finds runs whose commit gitinfo never saw.
 		$rev = get_param("rev", "#^[0-9a-fA-F]{4,40}$#");
 		if ($rev !== NULL)
 		{
-			$where[] = "r.revision LIKE :rev";
+			$where[] = "(r.revision LIKE :rev OR r.base_revision LIKE :rev)";
 			$params[":rev"] = strtolower($rev) . "%";
+		}
+
+		// A revision range, as two positions on master's timeline rather than as the list
+		// of every hash in between. That list used to be spliced into the query and was
+		// capped at 3000 commits; two integers have no cap, and they also catch the PR
+		// runs that were built on top of a commit in the range, which a hash list could
+		// not do even in principle.
+		$rev_from = get_revision_order_param("rev_from");
+		$rev_to = get_revision_order_param("rev_to");
+
+		// Endpoints given the wrong way round are a slip, not a request for no results.
+		if ($rev_from !== NULL && $rev_to !== NULL && $rev_from > $rev_to)
+		{
+			$swap = $rev_from;
+			$rev_from = $rev_to;
+			$rev_to = $swap;
+		}
+
+		if ($rev_from !== NULL)
+		{
+			$where[] = "r.base_order >= :rev_from";
+			$params[":rev_from"] = $rev_from;
+		}
+
+		if ($rev_to !== NULL)
+		{
+			$where[] = "r.base_order <= :rev_to";
+			$params[":rev_to"] = $rev_to;
+		}
+
+		// "master" for master builds only, a number for one pull request, "all" or
+		// nothing for everything. The browser asks for "master" by default, because PR
+		// runs are noise while bisecting a regression - but it says so in the URL rather
+		// than hiding rows behind a default the query string does not mention.
+		$pr = get_param("pr", "#^(master|all|[0-9]+)$#");
+
+		if ($pr === "master")
+		{
+			$where[] = "r.pr_number IS NULL";
+		}
+		else if ($pr !== NULL && $pr !== "all")
+		{
+			$where[] = "r.pr_number = :pr";
+			$params[":pr"] = (int)$pr;
 		}
 
 		// sources.id, not a LIKE on the display name.
@@ -149,7 +225,8 @@
 		// are assigned when the run is inserted - and page on the primary key alone.
 		$stmt = $dbh->prepare(
 			"SELECT r.id, UNIX_TIMESTAMP(r.timestamp) AS timestamp, r.source_id, src.name AS source, " .
-			"r.revision, r.platform, r.comment, r.count, r.failures " .
+			"r.revision, r.base_revision, r.base_order, r.base_exact, r.ref, r.pr_number, " .
+			"r.platform, r.comment, r.count, r.failures " .
 			"FROM winetest_runs r " .
 			"JOIN sources src ON r.source_id = src.id " .
 			"WHERE " . implode(" AND ", $where) . " " .
@@ -182,6 +259,15 @@
 				"source" => $row["source"],
 				"revision" => $row["revision"],
 				"revision_short" => substr($row["revision"], 0, 7),
+				// Where the run sits on master, which for a PR build is not where its own
+				// commit sits - it has none. base_exact = 0 means the position was
+				// guessed from the clock and the client has to say so.
+				"base_revision" => $row["base_revision"],
+				"base_revision_short" => $row["base_revision"] === NULL ? NULL : substr($row["base_revision"], 0, 7),
+				"base_order" => $row["base_order"] === NULL ? NULL : (int)$row["base_order"],
+				"base_exact" => (bool)$row["base_exact"],
+				"ref" => $row["ref"],
+				"pr_number" => $row["pr_number"] === NULL ? NULL : (int)$row["pr_number"],
 				"platform" => $row["platform"],
 				"platform_name" => GetPlatformString($row["platform"]),
 				"comment" => $row["comment"],
